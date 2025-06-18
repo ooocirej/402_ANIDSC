@@ -7,31 +7,31 @@ Feature: Pipeline component verification
     Given a fresh pipeline builder
 
   Scenario: Chaining compatible components succeeds
-    Given a component "BaseTrafficFeatureExtractor" with output schema
+    Given a component "BaseTrafficFeatureExtractor" with output schema:
+        | field     | type                          |
+        | features  | Tuple[List[float], List[Any]] |
+    And a component "BaseFeatureBuffer" with input schema
         | field     | type          |
         | features  | Tuple[List[float], List[Any]] |
-    And a component "BaseFeatureBuffer" with input schema:
-        | field     | type          |
-        | features  | Tuple[List[float], List[Any]] |
-    And a component "BaseDetector" with input schema:
+    And a component "BaseDetector" with input schema
         | field     | type          |
         | array     | NDArray[Any]  |
     When I assemble the pipeline components in order
         | BaseTrafficFeatureExtractor |
-        | BaseFeatureBuffer               |
+        | BaseFeatureBuffer           |
         | BaseDetector                |
     Then the pipeline should be valid
 
   Scenario: Chaining extractor directly to detector fails
     Given a component "BaseTrafficFeatureExtractor" with output schema:
-        | field     | type          |
+        | field     | type                          |
         | features  | Tuple[List[float], List[Any]] |
-    And a component "BaseDetector" with input schema:
+    And a component "BaseDetector" with input schema
         | field     | type         |
         | array     | NDArray[Any] |
     When I assemble the pipeline components in order
-        | BaseTrafficFeatureExtractor |
-        | BaseDetector                |
+        | BaseTrafficFeatureExtractor   |
+        | BaseDetector                  |
     Then the pipeline validation should fail with message:
         """
         Incompatible chaining: BaseTrafficFeatureExtractor returns Tuple[List[float], List[Any]], but BaseDetector expects NDArray[Any]

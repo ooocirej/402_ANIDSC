@@ -76,10 +76,9 @@ class PipelineComponent(ABC):
         else:
             self_last_component_return = raw_return
 
-        # Get input type of next component
-        other_signature = inspect.signature(other.process)
-        other_params = list(other_signature.parameters.values())
-        print(other.__class__.__name__)
+        # Get input type of next component, skipping 'self'
+        sig = inspect.signature(other.process)
+        other_params = [p for p in sig.parameters.values() if p.name != 'self']
         if not other_params:
             raise TypeError(f"{other.__class__.__name__} doesn't have inputs")
         other_input = get_type_hints(other.process).get(other_params[0].name)
@@ -87,8 +86,6 @@ class PipelineComponent(ABC):
         origin_self_return = get_origin(self_last_component_return)
         origin_other_input = get_origin(other_input)
 
-        if origin_other_input is Union:
-            union_args - get
         
         if (origin_self_return is origin_other_input) and (origin_self_return is not None):
             # print("inside origin")
@@ -106,11 +103,11 @@ class PipelineComponent(ABC):
 
         if not compatible:
             raise TypeError(
-                f"Incompatible chaning: {self_last_component.__class__.__name__} returns {self_last_component_return},"
+                f"Incompatible chaining: {self_last_component.__class__.__name__} returns {self_last_component_return},"
                 f"but {other.__class__.__name__} expects {other_input}"
             )
-
         return Pipeline(self_components + other_components)
+
     
 class Pipeline(PipelineComponent):
     def __init__(self, components: List[PipelineComponent]):

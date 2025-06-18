@@ -29,7 +29,7 @@ def main():
     evaluator = BaseEvaluator(metric_list={})
 
     #basic chain
-    pipeline = extractor | buffer | detector | evaluator
+    pipeline = extractor | detector
 
     pkt = Packet("test", timestamp=123.0)
     output = pipeline.process(pkt)

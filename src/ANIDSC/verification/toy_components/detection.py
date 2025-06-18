@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Tuple
 from .pipeline_component import PipelineComponent
+from numpy import ndarray as NDArray
+
 
 class BaseDetector(PipelineComponent):
     """
@@ -13,11 +15,11 @@ class BaseDetector(PipelineComponent):
         self.threshold = threshold
         self.batch_num = 0
 
-    def process(self, input_data: Tuple[List[float], Any]) -> Dict[str, Any]:
-        features, metadata = input_data
+    def process(self, input_data: NDArray[Any]) -> Dict[str, Any]:
         # Compute a toy score: mean of features
-        if features:
-            score = sum(features) / len(features)
+        
+        if input_data.size > 0:
+            score = float(input_data.mean())
         else:
             score = 0.0
         self.batch_num += 1

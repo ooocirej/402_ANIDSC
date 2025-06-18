@@ -1,7 +1,7 @@
-from typing import List, Any, Tuple, Union
+from typing import Any, List, Tuple
+from numpy.typing import NDArray
+import numpy as np                
 from .pipeline_component import PipelineComponent
-from numpy import ndarray as NDArray
-
 
 class BaseFeatureBuffer(PipelineComponent):
     """
@@ -24,7 +24,7 @@ class BaseFeatureBuffer(PipelineComponent):
     def process(self, data: Tuple[List[Any], List[Any]]) -> NDArray[Any]:
         features, _labels = data
         # Stack your feature list into a 2D NumPy array:
-        return NDArray(features)
+        return np.array(features)
 
     def teardown(self):
         # Toy: no resources to close

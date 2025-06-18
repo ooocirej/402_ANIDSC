@@ -23,7 +23,6 @@ class BaseFeatureBuffer(PipelineComponent):
 
     def process(self, data: Tuple[List[Any], List[Any]]) -> NDArray[Any]:
         features, _labels = data
-        # Stack your feature list into a 2D NumPy array:
         return np.array(features)
 
     def teardown(self):

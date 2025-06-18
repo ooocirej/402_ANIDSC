@@ -13,14 +13,6 @@ class Packet:
         self.timestamp = timestamp
 
 def main():
-    # get_function_args - 
-    # get_function_args()
-
-    # verify_return_types - 
-    # processor = test_class.ExampleProcessor()
-    # output = processor.process(test_class.Packet("Test"))
-
-    # print("Valid return:", verify_return_types(output))
 
     # __or__ - 
     extractor = BaseTrafficFeatureExtractor()
@@ -29,7 +21,7 @@ def main():
     evaluator = BaseEvaluator(metric_list={})
 
     #basic chain
-    pipeline = extractor | detector
+    pipeline = extractor | buffer | detector | evaluator
 
     pkt = Packet("test", timestamp=123.0)
     output = pipeline.process(pkt)

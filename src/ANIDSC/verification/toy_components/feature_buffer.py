@@ -1,6 +1,6 @@
 from typing import List, Any, Tuple, Union
 from .pipeline_component import PipelineComponent
-import numpy as np
+from numpy import ndarray as NDArray
 
 
 class BaseFeatureBuffer(PipelineComponent):
@@ -21,9 +21,10 @@ class BaseFeatureBuffer(PipelineComponent):
         # Toy: record buffer configuration in context
         self.context['buffer_size'] = self.buffer_size
 
-    def process(self, data: Tuple[List[Any], List[Any]]) -> Union[None, Tuple[List[Any]]]:
-        # No real buffering; simply forward data
-        return data
+    def process(self, data: Tuple[List[Any], List[Any]]) -> NDArray[Any]:
+        features, _labels = data
+        # Stack your feature list into a 2D NumPy array:
+        return NDArray(features)
 
     def teardown(self):
         # Toy: no resources to close

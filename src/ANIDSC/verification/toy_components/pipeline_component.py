@@ -110,7 +110,7 @@ class PipelineComponent(ABC):
                 f"but {other.__class__.__name__} expects {other_input}"
             )
 
-        return Pipeline([self, other])
+        return Pipeline(self_components + other_components)
     
 class Pipeline(PipelineComponent):
     def __init__(self, components: List[PipelineComponent]):

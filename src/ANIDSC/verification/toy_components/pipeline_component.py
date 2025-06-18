@@ -21,37 +21,12 @@ class PipelineComponent(ABC):
             Pipeline: pipeline
         """
 
-        ##TODO: VERIFY INPUT AND OUTPUTS MATCH!!!
-        # if not isinstance(self, Pipeline):
-        #     print(f"SELF={self.__class__.__name__}")
-
-        #     type_hints = get_type_hints(self.process)
-        #     signature = inspect.signature(self.process)
-        #     for name, param in signature.parameters.items(): #Extract parameter names and types 
-        #         param_type = type_hints.get(name, "No annotation")
-        #         print(f"SELF'S INPUT - {name}: {param_type}")
-        #     print(f"self's output - {get_type_hints(self.process).get('return')}")
-        # else:
-        #     print(f"SELF={self.__class__.__name__}")
-        #     # print(f"{self.components[-1].__class__.__name__}")
-        #     print(f"{get_type_hints(self.components[-1].process).get('return')}") # get output of last pipeline component's process fucntion
-
-        # print(f"OTHER={other.__class__.__name__}")
-        
-        # type_hints_other = get_type_hints(other.process)
-        # signature_other = inspect.signature(other.process)
-        # for name, param in signature_other.parameters.items(): #Extract parameter names and types 
-        #     param_type = type_hints_other.get(name, "No annotation")
-        #     print(f"OTHER'S INPUT - {param_type}")
-        # print(f"others' output is {get_type_hints(self.process).get('return')}\n")
-
         # Get components of self
         if isinstance(self, Pipeline):
             self_components = self.components
         else:
             self_components = [self]
         
-        # print(self_components)
         # Get components of other
         if isinstance(other, Pipeline):
             other_components = other.components
@@ -62,7 +37,6 @@ class PipelineComponent(ABC):
         self_last_component, other = self_components[-1], other_components[0]
 
         # Get return type of last component of self
-        # self_last_component_return = get_type_hints(self_last_component.process).get('return')
         raw_return = get_type_hints(self_last_component.process).get('return')
         origin_return = get_origin(raw_return)
         if origin_return is Union:

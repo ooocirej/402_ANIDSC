@@ -23,7 +23,6 @@ def step_output_schema(context, name):
 
 @given('a component "{name}" with input schema')
 def step_input_schema(context, name):
-    # Instantiate the component and store its schema if you want to validate it
     context.next_component   = COMPONENT_MAP[name]()
     context.expected_schema  = [(row['field'], row['type']) for row in context.table]
 
@@ -46,7 +45,7 @@ def step_assert_valid(context):
     # 1) Must be a Pipeline instance
     assert isinstance(context.pipeline, Pipeline), f"Expected Pipeline, got {context.pipeline!r}"
 
-    # 2) Must have exactly as many stages as in the table
+    # 2) Must have exactly as many components as in the table
     expected_count = len(context.component_names)
     actual_count   = len(context.pipeline.components)
     assert actual_count == expected_count, f"Expected {expected_count} components, got {actual_count}"

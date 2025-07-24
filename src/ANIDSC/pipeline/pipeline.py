@@ -2,6 +2,7 @@
 import importlib
 import time
 from typing import Dict
+from pathlib import Path
 
 from tqdm import tqdm
 import yaml
@@ -24,9 +25,51 @@ class Pipeline(YamlSaveMixin, PipelineComponent):
             self.save_attr.append(key)
         self.start_time=None
         self.prefix=[]
-        
-    
 
+    def save_state(self, dirpath: Path) -> None:
+        """
+        Write out the pipeline manifest and each component's state under 'root_dir'.
+        """
+        root = Path(dirpath)
+        root.mkdir(parents=True, exist_ok=True)
+
+        # dump manifest of all components
+
+        manifest = {}
+        for name, comp in self.components.items():
+            # collect only the attrs you declared
+            keys = getattr(comp, "save_attr", []) # quick fix for now
+            attrs = {k: getattr(comp, k) for k in keys} # quick fix for now
+            manifest[name] = {
+                "class": type(comp).__name__,
+                "attrs": attrs,
+                "file": comp.get_save_path(),
+            }
+            # and persist the state
+            comp.save_state(dirpath/name)
+        with open(dirpath/"pipeline_config.yaml", "w") as f:
+            yaml.safe_dump(manifest, f, indent=2, sort_keys=False)
+
+    @classmethod
+    def load_state(cls, dirpath: Path) -> "Pipeline":
+        """
+        Load Pipeline from file 
+        """
+
+        root = Path(dirpath)
+        # read manifest
+        manifest = yaml.safe_load(open(root/"pipeline_config.yaml"))
+
+        # create empty pipeline and attach manifest
+        pipeline = cls()
+        pipeline.manifest = manifest
+
+        # use loader to build each component
+        pipeline.components = pipeline.load_components(manifest)
+        for comp in pipeline.components.values():
+            comp.on_load()
+
+        return pipeline
     
     def load_components(self, manifest):
         components = {}        

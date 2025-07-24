@@ -105,11 +105,19 @@ class PipelineComponent(ABC):
     def save(self):
         pass 
     
+    @abstractmethod
+    def save_state(self, dirpath:Path) -> None:
+        """Write out the component's full state under 'dirpath'."""
     
     @classmethod
     @abstractmethod
     def load(cls, path):
         pass 
+
+    @classmethod
+    @abstractmethod
+    def load_state(cls, dirpath:Path):
+        """Load an instance of a component from files in 'dirpath'. """
     
     def __str__(self):
         return self.__class__.__name__

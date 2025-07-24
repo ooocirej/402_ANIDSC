@@ -1,9 +1,9 @@
 from typing import Tuple
 import torch
 from .base_torch_model import BaseTorchModel
+from ...save_mixin.torch import TorchSaveMixin
 
-
-class AE(BaseTorchModel):
+class AE(TorchSaveMixin, BaseTorchModel):
     def __init__(self, *args, **kwargs):
         """a base autoencoder
 

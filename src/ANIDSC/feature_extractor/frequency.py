@@ -1,10 +1,10 @@
 from collections import deque
 
 from ..utils.helper import compare_dicts
-
-from ..save_mixin.pickle import PickleSaveMixin
 import numpy as np
 from ..component.feature_extractor import BaseTrafficFeatureExtractor
+from ..save_mixin.pickle import PickleSaveMixin
+
 
 class FrequencyState:
     def __init__(self, time_window):
@@ -18,7 +18,6 @@ class FrequencyState:
         while (self.sliding_window[-1]-self.sliding_window[0])>self.time_window:
             self.sliding_window.popleft()
         return np.array([[len(self.sliding_window)]])
-    
     def __eq__(self, other):
         # 1) Ensure same type
         if not isinstance(other, FrequencyState):
@@ -33,6 +32,7 @@ class FrequencyExtractor(PickleSaveMixin, BaseTrafficFeatureExtractor):
         Args:
             time_window (int, optional): length of time window. Defaults to 10.
         """                
+        self._init_args = {"time_window": time_window, **kwargs} # stash init args for load_state()
         super().__init__(**kwargs)
         self.time_window=time_window
         

@@ -19,6 +19,11 @@ class YamlSaveMixin:
         with open(manifest_path, "w") as out_file:
             yaml.safe_dump(self.to_dict(), out_file, indent=4, sort_keys=False)
 
+    def save_state(self, dirpath: Path) -> None:
+        dirpath.mkdir(parents=True, exist_ok=True)
+        with open(dirpath/"pipeline_config.yaml","w") as f:
+            yaml.safe_dump(self.to_dict(), f)
+
     @classmethod
     def load(cls, input_data):
         if isinstance(input_data, str):    
@@ -35,3 +40,9 @@ class YamlSaveMixin:
         
         
         return cls(**manifest["attrs"])
+    
+    @classmethod
+    def load_state(cls, dirpath: Path):
+        data = yaml.safe_load(open(dirpath/"pipeline_config.yaml"))
+        # assume cls.from_dict builds the pipeline structure
+        return cls.from_dict(data)

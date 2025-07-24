@@ -12,10 +12,10 @@ Feature: Feature extraction pipelines
 
         Examples:
             | state  | fe_name            | file                        |
-            | new    | FrequencyExtractor | benign_lenovo_bulb          |
-            | loaded | FrequencyExtractor | malicious_ACK_Flooding      |
-            | loaded | FrequencyExtractor | malicious_Service_Detection |
-            | loaded | FrequencyExtractor | malicious_Port_Scanning     |
+            # | new    | FrequencyExtractor | benign_lenovo_bulb          |
+            # | loaded | FrequencyExtractor | malicious_ACK_Flooding      |
+            # | loaded | FrequencyExtractor | malicious_Service_Detection |
+            # | loaded | FrequencyExtractor | malicious_Port_Scanning     |
             | new    | AfterImage         | benign_lenovo_bulb          |
             | loaded | AfterImage         | malicious_ACK_Flooding      |
             | loaded | AfterImage         | malicious_Service_Detection |

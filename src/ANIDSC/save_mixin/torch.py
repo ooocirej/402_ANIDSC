@@ -1,8 +1,6 @@
-
-
 from pathlib import Path
 from typing import Any, Dict
-
+from ..component.pipeline_component import PipelineComponent
 import torch
 
 
@@ -23,6 +21,13 @@ class TorchSaveMixin:
         ckpt_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(self, str(ckpt_path))
 
+    def save_state(self, dirpath: Path) -> None:
+        dirpath.mkdir(parents=True, exist_ok=True)
+        # save init args
+        torch.save(self._init_args, str(dirpath/"init_args.pth"))
+        # save model weights
+        torch.save(self.state_dict(), str(dirpath/"model.pth"))
+
     @classmethod
     def load(cls, path):
         """loads the parameters of torch model
@@ -41,6 +46,14 @@ class TorchSaveMixin:
         # if "optimizer_state_dict" in checkpoint.keys():
         #     model.optimizer.load_state_dict(checkpoint["optimizer_state_dict"][0])
         return model 
+    
+    @classmethod
+    def load_state(cls, dirpath: Path) -> PipelineComponent:
+        init_args = torch.load(str(dirpath/"init_args.pth"))
+        inst = cls(**init_args)
+        state_dict = torch.load(str(dirpath/"model.pth"))
+        inst.load_state_dict(state_dict)
+        return inst
        
 
     def state_dict(self)->Dict[str, Any]:

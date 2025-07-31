@@ -3,9 +3,11 @@ from tqdm import tqdm
 
 
 from .pipeline_component import PipelineComponent
+from ..save_mixin.pickle import PickleSaveMixin
 
 
-class PipelineSource(PipelineComponent):
+
+class PipelineSource(PickleSaveMixin, PipelineComponent):
 
     def __init__(self, dataset_name: str, file_name: str, max_records=float("inf"), batch_size=256):
         super().__init__(component_type="data_source")

@@ -1,6 +1,5 @@
 from pathlib import Path
 from typing import Any, Dict
-from ..component.pipeline_component import PipelineComponent
 import torch
 
 
@@ -48,7 +47,7 @@ class TorchSaveMixin:
         return model 
     
     @classmethod
-    def load_state(cls, dirpath: Path) -> PipelineComponent:
+    def load_state(cls, dirpath: Path):
         init_args = torch.load(str(dirpath/"init_args.pth"))
         inst = cls(**init_args)
         state_dict = torch.load(str(dirpath/"model.pth"))

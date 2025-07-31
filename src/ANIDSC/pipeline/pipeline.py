@@ -1,7 +1,7 @@
 
 import importlib
 import time
-from typing import Dict
+from typing import Dict, Optional
 from pathlib import Path
 
 from tqdm import tqdm
@@ -26,30 +26,45 @@ class Pipeline(YamlSaveMixin, PipelineComponent):
         self.start_time=None
         self.prefix=[]
 
-    def save_state(self, dirpath: Path) -> None:
+    def save_state(self, dirpath: Optional[Path] = None) -> Path:
         """
-        Write out the pipeline manifest and each component's state under 'root_dir'.
+        Persist to `{dataset}/{fe_class}/{file_name}` by default,
+        writing one `pipeline_config.yaml` per file_name.
         """
-        root = Path(dirpath)
+        # compute root
+        if dirpath is None:
+            ds    = self.manifest["data_source"]["attrs"]["dataset_name"]
+            fe    = (
+                self.perform_action("feature_extractor", "__str__")
+                or self.manifest["data_source"]["attrs"]["fe_name"]
+            )
+            fname = Path(self.manifest["data_source"]["attrs"]["file_name"]).stem
+            root  = Path(ds) / fe / fname
+        else:
+            root = Path(dirpath)
+
         root.mkdir(parents=True, exist_ok=True)
 
-        # dump manifest of all components
-
+        #  write manifest
         manifest = {}
         for name, comp in self.components.items():
-            # collect only the attrs you declared
-            keys = getattr(comp, "save_attr", []) # quick fix for now
-            attrs = {k: getattr(comp, k) for k in keys} # quick fix for now
+            attrs = {k: getattr(comp, k) for k in getattr(comp, "save_attr", [])}
             manifest[name] = {
-                "class": type(comp).__name__,
-                "attrs": attrs,
-                "file": comp.get_save_path(),
+                "module": comp.__class__.__module__,
+                "class":  comp.__class__.__name__,
+                "attrs":  attrs,
+                "file":   name,
             }
-            # and persist the state
-            comp.save_state(dirpath/name)
-        with open(dirpath/"pipeline_config.yaml", "w") as f:
-            yaml.safe_dump(manifest, f, indent=2, sort_keys=False)
+        with open(root / "pipeline_config.yaml", "w") as f:
+            yaml.safe_dump(manifest, f, sort_keys=False, indent=2)
 
+        # persist each component _under_ that same root
+        for name, comp in self.components.items():
+            comp_dir = root / name
+            comp.save_state(comp_dir)
+
+        return root
+    
     @classmethod
     def load_state(cls, dirpath: Path) -> "Pipeline":
         """
@@ -62,6 +77,7 @@ class Pipeline(YamlSaveMixin, PipelineComponent):
 
         # create empty pipeline and attach manifest
         pipeline = cls()
+        pipeline._root = root
         pipeline.manifest = manifest
 
         # use loader to build each component
@@ -71,19 +87,47 @@ class Pipeline(YamlSaveMixin, PipelineComponent):
 
         return pipeline
     
+    # def load_components(self, manifest):
+    #     components = {}        
+    #     for type, meta in manifest.items():
+    #         module = importlib.import_module(meta["module"])
+    #         component_cls = getattr(module, meta["class"])
+    #         if meta.get("file", False):
+    #             file_path = meta["file"]
+    #             comp = component_cls.load(file_path)
+                
+    #         else:
+    #             comp = component_cls(**meta.get("attrs", {}))
+    #         comp.parent_pipeline=self
+    #         components[type] = comp
+    #     return components
+
     def load_components(self, manifest):
         components = {}        
-        for type, meta in manifest.items():
-            module = importlib.import_module(f"ANIDSC.{type}")
-            component_cls = getattr(module, meta["class"])
-            if meta.get("file", False):
-                file_path = meta["file"]
-                comp = component_cls.load(file_path)
+        # for type, meta in manifest.items():
+        #     module = importlib.import_module(f"ANIDSC.{type}")
+        #     component_cls = getattr(module, meta["class"])
+        #     if meta.get("file", False):
+        #         file_path = meta["file"]
+        #         comp = component_cls.load(file_path)
                 
-            else:
-                comp = component_cls(**meta.get("attrs", {}))
-            comp.parent_pipeline=self
-            components[type] = comp
+        #     else:
+        #         comp = component_cls(**meta.get("attrs", {}))
+        #     comp.parent_pipeline=self
+        #     components[type] = comp
+
+        for name, meta in manifest.items():
+            module_path = meta.get("module", f"ANIDSC.{name}")
+            module = importlib.import_module(module_path)
+            component_cls = getattr(module, meta["class"])
+            attrs = meta.get("attrs", {})
+            file_path = meta.get("file")
+            state_dir = (self._root / Path(file_path)) if file_path else None
+            comp = component_cls.load_state(state_dir, **attrs)
+
+            comp.parent_pipeline = self
+            components[name] = comp
+
         return components
         
     def on_load(self):
@@ -137,21 +181,55 @@ class Pipeline(YamlSaveMixin, PipelineComponent):
             pbar.update(1)
             if comp_type=="data_source":
                 break
-
-        self.save()
             
-    def get_save_path_template(self):
-        fe_name=self.perform_action('feature_extractor', '__str__')
-        if fe_name is None:
-            fe_name=self.get_attr("data_source","fe_name")
-        
-        if len(self.prefix)==0:
-        
-            return f"{self.get_attr('data_source','dataset_name')}/{fe_name}/saved_components/{{}}/{self.get_attr('data_source','file_name')}/{{}}.{{}}"
+        ds     = self.manifest["data_source"]["attrs"]["dataset_name"]
+        fe     = self.perform_action("feature_extractor", "__str__") or \
+                 self.manifest["data_source"]["attrs"]["fe_name"]
+        fname  = self.manifest["data_source"]["attrs"]["file_name"]
 
-        else:
-            prefix_str="/".join(self.prefix)
-            return f"{self.get_attr('data_source','dataset_name')}/{fe_name}/saved_components/{{}}/{self.get_attr('data_source','file_name')}/{prefix_str}/{{}}.{{}}"
+        save_dir = Path(ds) / fe / fname
+        save_dir.mkdir(parents=True, exist_ok=True)
+
+        return self.save_state() # return Path used
+            
+    # def get_save_path_template(self):
+    #     fe_name=self.perform_action('feature_extractor', '__str__')
+    #     if fe_name is None:
+    #         fe_name=self.get_attr("data_source","fe_name")
+        
+    #     if len(self.prefix)==0:
+        
+    #         return f"{self.get_attr('data_source','dataset_name')}/{fe_name}/saved_components/{{}}/{self.get_attr('data_source','file_name')}/{{}}.{{}}"
+
+    #     else:
+    #         prefix_str="/".join(self.prefix)
+    #         return f"{self.get_attr('data_source','dataset_name')}/{fe_name}/saved_components/{{}}/{self.get_attr('data_source','file_name')}/{prefix_str}/{{}}.{{}}"
+
+    def get_save_path_template(self) -> str:
+        """ Returns a format string with two placeholders:
+            1) component name
+            2) filename (e.g. 'init_args' or 'state')
+
+        Example result:
+            'test_data/AfterImage/benign_lenovo_bulb/{component}/{file}.pkl'
+        """
+        # dataset
+        ds = self.manifest["data_source"]["attrs"]["dataset_name"]
+        # feature-extractor name
+        fe = (
+            self.perform_action("feature_extractor", "__str__")
+            or self.manifest["data_source"]["attrs"]["fe_name"]
+        )
+        #file name (pcap basename)
+        fname = Path(self.manifest["data_source"]["attrs"]["file_name"]).stem
+
+        # build the root: e.g. "test_data/AfterImage/benign_lenovo_bulb"
+        root = Path(ds) / fe / fname
+
+        # return the template under that root:
+        #   {component} → e.g. "data_source" or "feature_extractor"
+        #   {file}      → e.g. "init_args" or "state"
+        return str(root / "{component}" / "{file}.pkl")
 
 
     def get_attr(self, comp_type, attr, default=None):

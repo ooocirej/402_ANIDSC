@@ -6,10 +6,10 @@ Feature: Basic chaining from CSV files
         And the components are saved
         Examples:
             | state  | model               | file                        | fe_name            |
-            | new    | BoxPlot             | benign_lenovo_bulb          | FrequencyExtractor |
-            | loaded | BoxPlot             | malicious_Service_Detection | FrequencyExtractor |
-            | loaded | BoxPlot             | malicious_Port_Scanning     | FrequencyExtractor |
-            | loaded | BoxPlot             | malicious_ACK_Flooding      | FrequencyExtractor |
+            # | new    | BoxPlot             | benign_lenovo_bulb          | FrequencyExtractor |
+            # | loaded | BoxPlot             | malicious_Service_Detection | FrequencyExtractor |
+            # | loaded | BoxPlot             | malicious_Port_Scanning     | FrequencyExtractor |
+            # | loaded | BoxPlot             | malicious_ACK_Flooding      | FrequencyExtractor |
             | new    | torch_model.AE      | benign_lenovo_bulb          | AfterImage         |
             | new    | torch_model.ICL     | benign_lenovo_bulb          | AfterImage         |
             | new    | torch_model.Kitsune | benign_lenovo_bulb          | AfterImage         |

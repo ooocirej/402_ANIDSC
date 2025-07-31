@@ -1,6 +1,7 @@
 from ANIDSC.pipeline import Pipeline
 from ANIDSC.templates import get_template
 from behave import given, when, then
+from pathlib import Path
 
 
 import os
@@ -50,13 +51,18 @@ def step_then_data_processed_correctly(context):
 
 @then("the components are saved")
 def step_then_components_are_saved(context):
-    manifest_path=context.pipeline.get_save_path()
+    # manifest_path=context.pipeline.get_save_path()
     
-    loaded_pipeline=Pipeline.load(manifest_path)
+    # loaded_pipeline=Pipeline.load(manifest_path)
 
-    loaded_pipeline.on_load() # load the components
+    # loaded_pipeline.on_load() # load the components
     
-    assert loaded_pipeline==context.pipeline
+    # assert loaded_pipeline==context.pipeline
+
+    # use load_state
+    loaded = Pipeline.load_state(context.save_dir)
+    assert loaded == context.pipeline
+
     
     
 

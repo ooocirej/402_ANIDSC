@@ -15,5 +15,5 @@ class NullSaveMixin:
         print("didn't load")
 
     @classmethod
-    def load_state(cls, dirpath: Path):
-        return cls()
+    def load_state(cls, dirpath: Path | None, **attrs):
+        return cls(**attrs)

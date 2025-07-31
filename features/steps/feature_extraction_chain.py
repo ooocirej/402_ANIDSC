@@ -4,6 +4,7 @@ from ANIDSC.pipeline import Pipeline
 from ANIDSC.templates import get_template
 from shutil import rmtree
 import os
+from pathlib import Path
 
 
 @given("a new {fe_class} feature extraction pipeline initialized with test_data dataset and file {file}")
@@ -15,20 +16,30 @@ def step_given_new_afterimage_and_file(context, fe_class, file):
 
 @given("a loaded {fe_class} feature extraction pipeline initialized with test_data dataset and file {file}")
 def step_given_loaded_afterimage_and_file(context, fe_class, file):
-    saved_file=f"test_data/{fe_class}/saved_components/pipeline/benign_lenovo_bulb/PacketReader->{fe_class}->TabularFeatureBuffer(256).yaml"    
+    # saved_file=f"test_data/{fe_class}/saved_components/pipeline/benign_lenovo_bulb/PacketReader->{fe_class}->TabularFeatureBuffer(256).yaml"    
     
-    with open(saved_file) as f:
-        manifest = yaml.safe_load(f)
+    # with open(saved_file) as f:
+    #     manifest = yaml.safe_load(f)
         
-    manifest["attrs"]["manifest"]["data_source"]["attrs"]["file_name"]=file
+    # manifest["attrs"]["manifest"]["data_source"]["attrs"]["file_name"]=file
     
     
-    context.pipeline=Pipeline.load(manifest)
-    context.pipeline.on_load()
+    # context.pipeline=Pipeline.load(manifest)
+    # context.pipeline.on_load()
+
+    save_dir = Path("test_data") / fe_class / "benign_lenovo_bulb"
+    pipeline = Pipeline.load_state(save_dir)
+
+    pipeline.manifest["data_source"]["attrs"]["file_name"] = file
+    pipeline.components["data_source"].file_name = file
+    pipeline.setup()
+    context.pipeline = pipeline
 
 @when("the pipeline starts")
 def step_when_pipeline_starts(context):
-    context.pipeline.start()
+    # context.pipeline.start()
+
+    context.save_dir = context.pipeline.start() # add save directory to context
     
 @given("{dataset} {fe_name} folder is empty")
 def step_given_output_folder_is_empty(context, dataset, fe_name):

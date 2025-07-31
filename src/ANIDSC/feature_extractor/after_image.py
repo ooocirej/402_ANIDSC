@@ -272,14 +272,14 @@ class AfterImage(PickleSaveMixin, BaseTrafficFeatureExtractor):
 
 
 class AfterImageGraph(AfterImage):
-    def __init__(self, protocol_map:Dict[str, int]={"TCP":0,"UDP":1,"ICMP":2,"ARP":3, "Other":4}, mac_to_idx_map: Dict[str, int]={},**kwargs):
+    def __init__(self, skip: int=4, protocol_map:Dict[str, int]={"TCP":0,"UDP":1,"ICMP":2,"ARP":3, "Other":4}, mac_to_idx_map: Dict[str, int]={},**kwargs):
         """initializes afterimage, a packet-based feature extractor used in Kitsune
 
         Args:
             limit (int, optional): maximum number of records. Defaults to 1e6.
             decay_factors (list, optional): the time windows. Defaults to [5,3,1,.1,.01].
         """
-        super().__init__(skip=4,**kwargs)
+        super().__init__(skip=skip,**kwargs)
         
 
         self.protocol_map=protocol_map

@@ -20,13 +20,32 @@ class PickleSaveMixin:
         
     def save_state(self, dirpath: Path) -> None:
         """Save object to file using pickle,
-        stashes init args if needed, and dumb state.
+        stashes init args if needed, and dump state.
         """
         dirpath.mkdir(parents=True, exist_ok=True)
-        # stash init args if needed
-        pickle.dump(self._init_args, open(dirpath/"init_args.pkl","wb"))
-        # dump internal state
-        pickle.dump(self.__dict__,   open(dirpath/"state.pkl","wb"))
+        # stash init args if needed declared in save_attr
+        init_args = {
+            k: getattr(self, k)
+            for k in getattr(self, "save_attr", [])
+        }
+
+        with open(dirpath / "init_args.pkl", "wb") as f:
+            pickle.dump(init_args, f)
+
+        # now filter __dict__ to only pickle-able items
+        state = {}
+        for k, v in self.__dict__.items():
+            if k in init_args:
+                continue
+            # try dumping in memory
+            try:
+                pickle.dumps(v)
+            except Exception:
+                continue
+            state[k] = v
+
+        with open(dirpath / "state.pkl", "wb") as f:
+            pickle.dump(state, f)
     
     @classmethod
     def load(cls, path): # dataset_name:str, fe_name:str, file_name:str, name:str, suffix:str=''
@@ -53,14 +72,23 @@ class PickleSaveMixin:
         return obj
 
     @classmethod
-    def load_state(cls, dirpath: Path):
-        """ Load previous state from directory path"""
-        # read init args and re-call __init__
-        init_args = pickle.load(open(dirpath/"init_args.pkl","rb"))
-        # create new instance
+    def load_state(cls, dirpath: Path | None = None, **attrs):
+        """ Load component
+            - if no dirpath, instantiate with attrs.
+            - If dirpath provided, ignore attrs, use pkl files"""
+        
+        if dirpath is None:
+            return cls(**attrs)
+        # load constructor arguments from pickle files
+        with open(dirpath / "init_args.pkl", "rb") as f:
+            init_args = pickle.load(f)
+
+        #instantiate
         inst = cls(**init_args)
-        # restore the rest of state
-        data = pickle.load(open(dirpath/"state.pkl","rb"))
-        inst.__dict__.update(data)
+
+        #restore rest of state
+        with open(dirpath / "state.pkl", "rb") as f:
+            state = pickle.load(f)
+        inst.__dict__.update(state)
         return inst
     

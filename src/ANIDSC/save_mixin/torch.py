@@ -21,11 +21,9 @@ class TorchSaveMixin:
         torch.save(self, str(ckpt_path))
 
     def save_state(self, dirpath: Path) -> None:
+        dirpath = Path(dirpath)
         dirpath.mkdir(parents=True, exist_ok=True)
-        # save init args
-        torch.save(self._init_args, str(dirpath/"init_args.pth"))
-        # save model weights
-        torch.save(self.state_dict(), str(dirpath/"model.pth"))
+        torch.save(self, str(dirpath / "full_model.pt"))
 
     @classmethod
     def load(cls, path):
@@ -48,11 +46,7 @@ class TorchSaveMixin:
     
     @classmethod
     def load_state(cls, dirpath: Path):
-        init_args = torch.load(str(dirpath/"init_args.pth"))
-        inst = cls(**init_args)
-        state_dict = torch.load(str(dirpath/"model.pth"))
-        inst.load_state_dict(state_dict)
-        return inst
+        return torch.load(str(Path(dirpath) / "full_model.pt"))
        
 
     def state_dict(self)->Dict[str, Any]:

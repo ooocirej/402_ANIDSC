@@ -56,7 +56,7 @@ class TorchSaveMixin:
             Dict[str, Any] : state dictionary
         """        
         state = super().state_dict()
-        for i in self.custom_params:
+        for i in getattr(self, "custom_params", []): # no-op when no custom_params
             state[i] = getattr(self, i)
         return state
     
@@ -66,7 +66,7 @@ class TorchSaveMixin:
         Args:
             state_dict (Dict[str, Any]): the state dictionary
         """        
-        for i in self.custom_params:
+        for i in getattr(self, "custom_params", []): # no-op when no custom_params
             setattr(self, i, state_dict[i])
             del state_dict[i]
         super().load_state_dict(state_dict)

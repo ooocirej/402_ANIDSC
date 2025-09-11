@@ -1,0 +1,30 @@
+class: Pipeline
+attrs:
+    manifest:
+        data_source:
+            class: PacketReader
+            attrs:
+                dataset_name: test_data
+                file_name: malicious_Port_Scanning
+                max_records: .inf
+                batch_size: 256
+            file: false
+        feature_extractor:
+            class: AfterImage
+            attrs:
+                skip: 0
+                offset_time: 0
+                decay_factors:
+                - 5
+                - 3
+                - 1
+                - 0.1
+                - 0.01
+            file: test_data/AfterImage/saved_components/feature_extractor/malicious_Port_Scanning/AfterImage.pkl
+        feature_buffer:
+            class: TabularFeatureBuffer
+            attrs:
+                buffer_size: 256
+                save_features: true
+            file: false
+file: test_data/AfterImage/saved_components/pipeline/malicious_Port_Scanning/PacketReader->AfterImage->TabularFeatureBuffer(256).yaml

@@ -1,0 +1,58 @@
+class: Pipeline
+attrs:
+    manifest:
+        data_source:
+            class: PacketReader
+            attrs:
+                dataset_name: test_data
+                file_name: malicious_ACK_Flooding
+                max_records: .inf
+                batch_size: 256
+            file: false
+        feature_extractor:
+            class: AfterImageGraph
+            attrs:
+                skip: 4
+                offset_time: 0
+                decay_factors:
+                - 5
+                - 3
+                - 1
+                - 0.1
+                - 0.01
+                protocol_map:
+                    TCP: 0
+                    UDP: 1
+                    ICMP: 2
+                    ARP: 3
+                    Other: 4
+                mac_to_idx_map:
+                    a2:bd:fa:b5:89:92: 0
+                    5e:ea:b2:63:fc:aa: 1
+                    d2:19:d4:e9:94:86: 2
+                    46:c0:e1:eb:fe:23: 3
+                    c6:db:7d:e9:42:03: 4
+                    00:00:00:00:00:00: 5
+                    ff:ff:ff:ff:ff:ff: 6
+                    9e:fb:26:36:c7:79: 7
+                    22:c9:ca:f6:da:60: 8
+                    26:74:46:25:ea:5f: 9
+                    92:fa:93:0e:7a:5d: 10
+                    0e:6c:db:d0:e1:18: 11
+                    1a:3f:4a:29:80:40: 12
+                    ea:d8:43:b8:6e:9a: 13
+                    be:7b:f6:f2:1b:5f: 14
+                    4e:12:15:65:2d:70: 15
+                    b6:95:13:2e:85:f8: 16
+                    8e:65:d4:e1:c5:6f: 17
+                    ca:47:5f:92:ed:09: 18
+                    52:a8:55:3e:34:46: 19
+                    0a:08:59:8a:2f:1b: 20
+            file: test_data/AfterImageGraph/saved_components/feature_extractor/malicious_ACK_Flooding/AfterImageGraph.pkl
+        feature_buffer:
+            class: TabularFeatureBuffer
+            attrs:
+                buffer_size: 256
+                save_features: true
+            file: false
+file: test_data/AfterImageGraph/saved_components/pipeline/malicious_ACK_Flooding/PacketReader->AfterImageGraph->TabularFeatureBuffer(256).yaml

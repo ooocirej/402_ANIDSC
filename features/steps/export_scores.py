@@ -63,11 +63,17 @@ def step_export_scores(context, out_path):
     fe  = context.pipeline.request_attr("data_source", "fe_name")
     ds  = context.pipeline.request_attr("data_source", "dataset_name")
     fn  = context.pipeline.request_attr("data_source", "file_name")
-    out_path = out_path.format(fe_name=fe, dataset=ds, file=fn, pipeline=str(context.pipeline))
+    pipe = str(context.pipeline)
+    out_path = out_path.format(fe_name=fe, dataset=ds, file=fn, pipeline=pipe)
 
-    print("yes")
-    _tap_uninstall(context)
     rows = context.__dict__.get("_pred_rows", [])
     df = pd.DataFrame(rows)
-    p = Path(out_path); p.parent.mkdir(parents=True, exist_ok=True)
+
+    df.insert(0, "pipeline", pipe)
+    df.insert(1, "dataset", ds)
+    df.insert(2, "fe_name", fe)
+    df.insert(3, "file", fn)
+
+    p = Path(out_path)
+    p.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(p, index=False)

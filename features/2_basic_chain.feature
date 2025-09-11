@@ -1,9 +1,11 @@
 Feature: Basic chaining from CSV files
     Scenario Outline: Process packets from an offline csv reader
         Given a <state> basic pipeline with input from csv file initialized with dataset test_data, file <file>, feature extractor <fe_name> and model <model>
+        # And enable anomaly score tap
         When the pipeline starts
         Then the pipeline should not fail
         And the components are saved
+        # And export anomaly scores to "tmp/scores/{fe_name}/{file}.csv"
         Examples:
             | state  | model               | file                        | fe_name            |
             # | new    | BoxPlot             | benign_lenovo_bulb          | FrequencyExtractor |

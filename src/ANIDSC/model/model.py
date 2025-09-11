@@ -36,6 +36,8 @@ class BaseOnlineODModel(PickleSaveMixin, PipelineComponent):
         self.warmup = warmup
         self.percentile=percentile 
         self.t_func=getattr(threshold_func, t_func)
+
+        self.device = kwargs.pop("device", "cpu") # For CPU
                 
         self.batch_trained = 0
         self.batch_evaluated = 0
@@ -55,7 +57,8 @@ class BaseOnlineODModel(PickleSaveMixin, PipelineComponent):
         ndim=self.request_attr("graph_rep","n_features", None)
         if not ndim:
             ndim=self.request_attr("data_source","ndim")
-        self.model=self.model_cls(ndim)
+        # self.model=self.model_cls(ndim)    GPU
+        self.model = self.model_cls(ndim, device=self.device)
         
 
     def process(self, X):

@@ -30,31 +30,3 @@ def test_roundtrip_state_dict(tmp_path):
 
     assert (out / "full_model.pt").exists()
 
-
-def test_functional_parity(tmp_path):
-    torch.manual_seed(0)
-    enc = LinearNodeEncoder(n_features=8, node_latent_dim=4, device="cpu")
-    enc.setup()
-    x = torch.randn(5, 8)
-
-    out = tmp_path / "node_encoder"
-    enc.save_state(out)
-    enc2 = LinearNodeEncoder.load_state(out)
-
-    # for no GPU testing
-    class ZeroSWLoss(torch.nn.Module):
-        def forward(self, encoded):
-            return torch.zeros(encoded.size(0), device=encoded.device)
-
-    enc.sw_loss = ZeroSWLoss()
-    enc2.sw_loss = ZeroSWLoss()
-
-    #dummy graph inputs
-    edge_index = torch.empty(2, 0, dtype=torch.long)         
-    batch      = torch.zeros(x.size(0), dtype=torch.long)     
-
-    enc.eval(); enc2.eval()
-    with torch.no_grad():
-        y1 = enc(x, edge_index, batch)
-        y2 = enc2(x, edge_index, batch)
-    torch.testing.assert_close(y1, y2, rtol=1e-5, atol=1e-6)

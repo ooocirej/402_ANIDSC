@@ -12,6 +12,8 @@ from ANIDSC.save_mixin.yaml import YamlSaveMixin
 from tqdm import tqdm
 import yaml
 import importlib
+import copy
+import inspect
 from ..utils.helper import compare_dicts
 
 class PipelineComponent(ABC):
@@ -36,6 +38,66 @@ class PipelineComponent(ABC):
         
         # used for saving config
         self.save_attr=[]
+
+        self._auto_capture_init_args()
+    
+    def _auto_capture_init_args(self):
+        """
+        Automatically capture __init__ parameters for reconstruction during load.
+        This allows components to be saved/loaded without manually storing parameters.
+        """
+        # Only capture for saveable components
+        from ..save_mixin.pickle import PickleSaveMixin
+        from ..save_mixin.torch import TorchSaveMixin
+        
+        if not isinstance(self, (PickleSaveMixin, TorchSaveMixin)):
+            return
+        
+        try:
+            # Walk up the call stack to find the outermost __init__
+            frame = inspect.currentframe()
+            if frame is None:
+                return
+            
+            # Start from the frame that called this method
+            current_frame = frame.f_back
+            init_frame = None
+            
+            # Walk up the stack looking for __init__ frames
+            while current_frame is not None:
+                frame_info = inspect.getframeinfo(current_frame)
+                code_context = current_frame.f_code.co_name
+                
+                # Found an __init__ method
+                if code_context == '__init__':
+                    # Keep going up to find the OUTERMOST __init__ (the leaf class)
+                    init_frame = current_frame
+                else:
+                    # Hit a non-__init__ frame, stop here
+                    # init_frame now holds the outermost __init__
+                    break
+                
+                current_frame = current_frame.f_back
+            
+            if init_frame is None:
+                self._init_args = {}
+                return
+            
+            # Get local variables from the outermost __init__
+            local_vars = init_frame.f_locals.copy()
+            
+            # Remove 'self' and internal Python variables
+            local_vars.pop('self', None)
+            local_vars.pop('__class__', None)
+            
+            # Deep copy to avoid mutable default issues
+            self._init_args = copy.deepcopy(local_vars)
+            
+        except Exception as e:
+            # Fail silently - not critical for functionality
+            import warnings
+            warnings.warn(f"Could not auto-capture init args: {e}")
+            self._init_args = {}
         
     def get_save_path(self):
         """Get save path, handling both old and new systems."""
@@ -156,15 +218,15 @@ class PipelineComponent(ABC):
         return comp_dict
 
     
-    def get_save_path(self):
-        if isinstance(self, NullSaveMixin):
-            return False
-        elif isinstance(self, YamlSaveMixin):
-            return self.get_save_path_template().format(self.component_type, str(self), "yaml")
-        elif isinstance(self, PickleSaveMixin):
-            return self.parent_pipeline.get_save_path_template().format(self.component_type, str(self), "pkl")
-        elif isinstance(self, TorchSaveMixin):
-            return self.parent_pipeline.get_save_path_template().format(self.component_type, str(self), "pth")
+    # def get_save_path(self):
+    #     if isinstance(self, NullSaveMixin):
+    #         return False
+    #     elif isinstance(self, YamlSaveMixin):
+    #         return self.get_save_path_template().format(self.component_type, str(self), "yaml")
+    #     elif isinstance(self, PickleSaveMixin):
+    #         return self.parent_pipeline.get_save_path_template().format(self.component_type, str(self), "pkl")
+    #     elif isinstance(self, TorchSaveMixin):
+    #         return self.parent_pipeline.get_save_path_template().format(self.component_type, str(self), "pth")
     
     def __getstate__(self):
         state = self.__dict__.copy()

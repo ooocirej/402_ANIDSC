@@ -23,11 +23,16 @@ class PickleSaveMixin:
         stashes init args if needed, and dump state.
         """
         dirpath.mkdir(parents=True, exist_ok=True)
-        # stash init args if needed declared in save_attr
-        init_args = {
-            k: getattr(self, k)
-            for k in getattr(self, "save_attr", [])
-        }
+        # NEW: Use auto-captured init args if available
+        if hasattr(self, '_init_args'):
+            init_args = self._init_args.copy()
+        else:
+            # Fallback: use save_attr for backward compatibility
+            init_args = {
+                k: getattr(self, k)
+                for k in getattr(self, "save_attr", [])
+                if hasattr(self, k)
+            }
 
         with open(dirpath / "init_args.pkl", "wb") as f:
             pickle.dump(init_args, f)
@@ -35,7 +40,7 @@ class PickleSaveMixin:
         # now filter __dict__ to only pickle-able items
         state = {}
         for k, v in self.__dict__.items():
-            if k in init_args:
+            if k in init_args or k == '_init_args':  # Skip init args and _init_args itself
                 continue
             # try dumping in memory
             try:
@@ -46,7 +51,8 @@ class PickleSaveMixin:
 
         with open(dirpath / "state.pkl", "wb") as f:
             pickle.dump(state, f)
-    
+
+            
     @classmethod
     def load(cls, path): # dataset_name:str, fe_name:str, file_name:str, name:str, suffix:str=''
         """Load an object from a file using pickle

@@ -3,6 +3,7 @@ import importlib
 import time
 from typing import Dict, Optional
 from pathlib import Path
+import copy
 
 from tqdm import tqdm
 import yaml
@@ -100,7 +101,19 @@ class Pipeline(YamlSaveMixin, PipelineComponent):
         # Write manifest
         manifest = {}
         for name, comp in self.components.items():
-            attrs = {k: getattr(comp, k) for k in getattr(comp, "save_attr", [])}
+            
+            # NEW - use auto-captured init args
+            if hasattr(comp, '_init_args'):
+                # Use auto-captured init args
+                attrs = comp._init_args.copy()
+            else:
+                # Fallback to save_attr for backward compatibility
+                attrs = {
+                    k: getattr(comp, k) 
+                    for k in getattr(comp, "save_attr", [])
+                    if hasattr(comp, k)
+                }
+                
             manifest[name] = {
                 "module": comp.__class__.__module__,
                 "class": comp.__class__.__name__,

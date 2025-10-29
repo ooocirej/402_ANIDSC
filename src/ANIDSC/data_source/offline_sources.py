@@ -51,4 +51,6 @@ class CSVReader(NullSaveMixin, PipelineSource):
         self.ndim=len(self.feature_names)
         
     def __getattr__(self, name):
-        return self.fe_attrs[name]
+        if name in self.fe_attrs:
+            return self.fe_attrs[name]
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")

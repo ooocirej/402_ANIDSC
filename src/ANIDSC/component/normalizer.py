@@ -24,7 +24,7 @@ class BaseOnlineNormalizer(PipelineComponent):
         ndim=self.request_attr("data_source","ndim")
         
         self.ndim=ndim
-        self.skip=self.request_attr("data_source", "skip")
+        self.skip=self.request_attr("data_source", "skip", 0)
 
         
     @abstractmethod

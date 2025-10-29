@@ -12,7 +12,6 @@ import plotly.graph_objects as go
 import plotly.io as pio
 from dash.dependencies import ALL
 
-# Set Plotly theme
 pio.templates.default = "plotly_white"
 
 SCORES_ROOT = Path("tests/unit/AfterImage")
@@ -24,7 +23,7 @@ CLICK_Y_PADDING_FRAC = 0.05
 MAX_POINTS = 10_000
 RESULTS_ROOT = Path("tests/unit/AfterImage/results")
 
-# Enhanced color scheme
+# color scheme
 COLORS = {
     'primary': '#667eea',
     'secondary': '#764ba2',
@@ -105,10 +104,9 @@ graph_card_styles = {
 # ---------- HELPERS ----------
 def find_csvs(root: Path):
     """
-    Expect paths like:
-      results/<dataset>/<feature>/<file>/<pipeline>/<csv_file>.csv
-    Label becomes: "<dataset>/<feature>/<file> — <pipeline>"
-    Falls back to a reasonable label if structure differs.
+    Search for CSV files recursively in a directory to create readable labels for them.
+    Expects diretory structure:
+    result/<dataset>/<feature>/<file>/<pipeline>/<csv_file>.csv
     """
     files = sorted(root.rglob("*.csv"))
     opts = []
@@ -119,12 +117,12 @@ def find_csvs(root: Path):
             rel = p.relative_to(root)
             parts = rel.parts  # includes the filename at the end
 
-            # Try to parse the last 5 parts: ds/feat/file/pipeline/file.csv
+            # Try to parse the last 5 parts: dataset/feature/file/pipeline/file.csv
             if len(parts) >= 5:
                 dataset, feature, file_name, pipeline = parts[-5], parts[-4], parts[-3], parts[-2]
                 label = f"{dataset}/{feature}/{file_name} — {pipeline}"
             elif len(parts) >= 3:
-                # Fallback: <parent>/<parent>/<file.csv>
+                # fallback: <parent>/<parent>/<file.csv>
                 label = "/".join(parts[-3:-1])  # two dirs
             else:
                 label = parts[-1]  # just the filename
@@ -138,9 +136,9 @@ def find_csvs(root: Path):
 
 def build_results_tree(root: Path) -> dict:
     """
-    Directories => dict of {child_name: child_node}
-    CSV files  => string full path (leaf)
-    Supports arbitrary nesting.
+    Build hierarchical tree representation of file system from root.
+    Create nested dictionaries where directories are dict nodes and CSV files are string leaf nodes containing full path.
+    This enables hierarchical navigation through the results directory structure.
     """
     tree: dict = {}
 
@@ -166,6 +164,11 @@ def build_results_tree(root: Path) -> dict:
 TREE = build_results_tree(RESULTS_ROOT)
 
 def node_from_parts(tree: dict, parts: list[str]):
+    """
+    Navifate through tree structure using a list of path components.
+    Returns the node at the specifed path or None if the the path doesn't exist.
+    Used for navigating the hierarchical file structure.
+    """
     cur = tree
     for p in parts:
         if not isinstance(cur, dict) or p not in cur:
@@ -174,7 +177,11 @@ def node_from_parts(tree: dict, parts: list[str]):
     return cur
 
 def children_options(node) -> list[dict]:
-    """ Show folders first, then CSVs (alphabetically). """
+    """
+    Generate dropdown options from a tree node's childen.
+    Returns folders first, then CSV files ( alphabetically sorted ).
+    Returns empty list for leaf nodes.
+    """
     if not isinstance(node, dict):
         return []  # leaf
     folders = sorted([k for k, v in node.items() if isinstance(v, dict)])
@@ -183,9 +190,16 @@ def children_options(node) -> list[dict]:
     return [{"label": n, "value": n} for n in names]
 
 def is_leaf(node) -> bool:
+    """Checks if a tree node is a leaf (CSV file path string) or a directory (dict)"""
     return isinstance(node, str)
 
 def load_csv(path: str) -> pd.DataFrame:
+    """
+    Loads a CSV file and perform data type conversions.
+    Converts specific columns to numberic types, converts infinity values to NaN, and ensures score columns
+    are numeric.
+    Prepares data for analysis and visualization.
+    """
     df = pd.read_csv(path)
     numeric_cols = [
         "time","batch_num","median_score","median_threshold",
@@ -207,7 +221,11 @@ def load_csv(path: str) -> pd.DataFrame:
     return df
 
 def list_score_cols(df: pd.DataFrame) -> list:
-    """Return only the main score columns for selection"""
+    """
+    Identifies which columns in the dataframe can be used as score columns for analysis.
+    Prioritzes "median_score" and "detection_rate" as selectable options.
+    Falls back to any column starting with "score_" if the preferred columns arent included.
+    """
     # Only allow selection of median_score and detection_rate
     selectable = ["median_score", "detection_rate"]
     scores = [c for c in selectable if c in df.columns]
@@ -221,6 +239,10 @@ def list_score_cols(df: pd.DataFrame) -> list:
     return scores if scores else ["median_score"]
 
 def score_options_for(path: str, default: str | None = None):
+    """
+    Reads the first row of the CSV to find available score columns without loading the entire file.
+    Returns dropdown options and a default value.
+    """
     try:
         head = pd.read_csv(path, nrows=1)
         cols = list_score_cols(head)
@@ -233,6 +255,11 @@ def score_options_for(path: str, default: str | None = None):
     return opts, value
 
 def get_threshold_series(df: pd.DataFrame) -> pd.Series:
+    """
+    Extracts threshold valus for the dataframe.
+    Looks for "median_threshhold" first, then "threshhold".
+    Returns a series of NaN if no threshold column exists.
+    """
     if "median_threshold" in df.columns:
         return pd.to_numeric(df["median_threshold"], errors="coerce")
     if "threshold" in df.columns:
@@ -240,12 +267,21 @@ def get_threshold_series(df: pd.DataFrame) -> pd.Series:
     return pd.Series([np.nan] * len(df), index=df.index)
 
 def x_vals(df: pd.DataFrame):
+    """
+    Get x-axis values for plotting.
+    Returns "batch_num" column if it exists, otherwise reutrn a simple index range.
+    """
     return df["batch_num"] if "batch_num" in df.columns else pd.Series(range(len(df)))
 
 def _to_datetime_from_seconds(series):
+    """
+    convert a numberic series representing seconds to pandas datetime objects """
     return pd.to_datetime(pd.to_numeric(series, errors="coerce"), unit="s", utc=True)
 
 def time_to_datetime_series(df: pd.DataFrame):
+    """
+    Convert time-related columns to datetime format.
+    Return the converted series and boolean indicating if conversion was successful."""
     if "time" in df.columns:
         t = df["time"]
         if np.issubdtype(t.dtype, np.number):
@@ -269,6 +305,10 @@ def time_to_datetime_series(df: pd.DataFrame):
     return pd.Series(range(len(df))), False
 
 def compute_metrics(y_true: np.ndarray | None, y_pred: np.ndarray):
+    """
+    Calculate classification metrics including accuracy, precision, recall, F1 score.
+    Handles cases where labels are missing.
+    """
     n = len(y_pred)
     if y_true is None or y_true.size != n or np.isnan(y_true).all():
         return {"n": n, "predicted_anomalies": int(np.nansum(y_pred))}
@@ -282,8 +322,11 @@ def compute_metrics(y_true: np.ndarray | None, y_pred: np.ndarray):
     return {"n":n,"accuracy":acc,"precision":prec,"recall":rec,"f1":f1,"tp":tp,"tn":tn,"fp":fp,"fn":fn}
 
 def _downsample_indices_len_safe(n: int, keep_idxs, max_points: int = MAX_POINTS) -> np.ndarray:
-    """Return positional indices (<='max_points'). Always keep `keep_idxs` (positional),
-    then fill the rest uniformly. Works even if n <= max_points."""
+    """
+    Downsampling algortihm, reduces data points for plotting while preserving important features.
+    Keeps anomalies and peaks, then fills remaining points with uniformly distributed points.
+    Ensures plot maintains visual accuracy while improving performance.
+    """
     if n <= max_points:
         return np.arange(n, dtype=int)
 
@@ -321,16 +364,16 @@ def _downsample_indices_len_safe(n: int, keep_idxs, max_points: int = MAX_POINTS
         additional = available_indices
     else:
         # Sample uniformly from available indices
-        # Use linspace to get evenly distributed indices
+        # ise linspace to get evnly distributed indices
         sample_indices = np.linspace(0, len(available_indices) - 1, remaining_budget, dtype=int)
         additional = available_indices[sample_indices]
     
     # Combine and sort
     idx = np.unique(np.concatenate([keep, additional]))
     
-    # Final safety check - should not happen with corrected logic
+    # Final safety check 
     if idx.size > max_points:
-        # This time, we preserve the original keep points as much as possible
+        # preserve the original keep points as much as possible
         # by ensuring they appear in the final selection
         keep_set = set(keep[:min(len(keep), max_points // 2)])  # Reserve half for important points
         remaining_budget = max_points - len(keep_set)
@@ -345,6 +388,9 @@ def _downsample_indices_len_safe(n: int, keep_idxs, max_points: int = MAX_POINTS
     return np.sort(idx)[:max_points]
 
 def summarize_run(df: pd.DataFrame, score_col: str):
+    """
+    Sumarrizes statistics for a run including mean/median/stdev of scores, etc.
+    Returns summary dict and predicted anomalies."""
     if score_col not in df.columns:
         scores = list_score_cols(df)
         s = pd.Series([np.nan]*len(df)) if not scores else pd.to_numeric(df[scores[0]], errors="coerce")
@@ -395,6 +441,9 @@ def summarize_run(df: pd.DataFrame, score_col: str):
     }, y_pred
 
 def _metrics_block(m: dict | None):
+    """
+    Formats classification metrics into an HTML Div for display.
+    Shows metrics like mean_score, median score and anomaly rate."""
     if not m:
         return html.Div("No labels; showing anomaly count only.", style={"opacity":0.7, "color": COLORS['text_light']})
     items=[]
@@ -405,6 +454,8 @@ def _metrics_block(m: dict | None):
     return html.Div(items, style={"fontSize":"14px","marginTop":"6px", "color": COLORS['text']})
 
 def format_summary(s: dict):
+    """
+    Creates the summary display as a card arranged in a grid."""
     def f(x): return "" if x is None else (f"{x:.3f}" if isinstance(x, float) else str(x))
     
     # Create stat cards with only desired metrics
@@ -441,6 +492,9 @@ def format_summary(s: dict):
     return html.Div(blocks)
 
 def create_stat_card(label, value):
+    """
+    Creates the card component with label and value.
+    """
     return html.Div([
         html.Div(label, style={
             'fontSize': '0.85em',
@@ -456,7 +510,22 @@ def create_stat_card(label, value):
         })
     ], style={**stat_card_styles, 'textAlign': 'center'})
 
+def take_by_pos(series_like, idx: np.ndarray):
+    """
+    Return a positional slice of a pandas Series/Index/ndarray (by integer positions).
+    """
+    if isinstance(series_like, (pd.Series, pd.Index)):
+        return series_like.iloc[idx]
+    if isinstance(series_like, np.ndarray):
+        return series_like[idx]
+    # Coerce anything else (list, scalar) to a Series and slice
+    return pd.Series(series_like).iloc[idx]
+
 def plot_timeseries(df: pd.DataFrame, score_col: str, axis_mode="time", render_mode="gl"):
+    """
+    Creates the time series visualization.
+    Uses downasmpling, adding quartile bands if available, plots scores and thresholds.
+    Returns the figure and predicted anomalies."""
     if score_col not in df.columns:
         scores = list_score_cols(df)
         if not scores:
@@ -493,20 +562,11 @@ def plot_timeseries(df: pd.DataFrame, score_col: str, axis_mode="time", render_m
     # pick indices only for plotting
     idx = _downsample_indices_len_safe(n, preserve, max_points=MAX_POINTS)
 
-    # strict positional slicing to avoid label/pos mismatches
-    def take_pos(series_like):
-        if isinstance(series_like, pd.Series) or isinstance(series_like, pd.Index):
-            return series_like.iloc[idx]
-        if isinstance(series_like, np.ndarray):
-            return series_like[idx]
-        # fallback: wrap so we can .iloc
-        return pd.Series(series_like).iloc[idx]
+    sx   = take_by_pos(s,   idx)
+    xx   = take_by_pos(x,   idx)
+    thrx = take_by_pos(thr, idx) if thr.notna().any() else thr
 
-    sx   = take_pos(s)
-    xx   = take_pos(x)
-    thrx = take_pos(thr) if thr.notna().any() else thr
-
-    # recompute anomalies for the downsampled series (for markers only)
+    # recompute anomalies for the downsampled series
     if thr.notna().any():
         yp_plot = (sx >= thrx).astype(int)
         anom_idx_plot = yp_plot.fillna(0).to_numpy().nonzero()[0]
@@ -515,16 +575,6 @@ def plot_timeseries(df: pd.DataFrame, score_col: str, axis_mode="time", render_m
 
     TraceType = go.Scattergl if render_mode == "gl" else go.Scatter
     fig = go.Figure()
-
-    # quartile band (downsampled safely if present)
-    if "upper_quartile_score" in df.columns and "lower_quartile_score" in df.columns:
-        uq = pd.to_numeric(df["upper_quartile_score"], errors="coerce").replace([np.inf, -np.inf], np.nan)
-        lq = pd.to_numeric(df["lower_quartile_score"], errors="coerce").replace([np.inf, -np.inf], np.nan)
-        fig.add_trace(TraceType(x=xx, y=uq, mode="lines", name="Upper Quartile",
-                                line=dict(width=0), showlegend=False, hoverinfo="skip"))
-        fig.add_trace(TraceType(x=xx, y=lq, mode="lines", name="Quartile Range",
-                                line=dict(width=0), fill="tonexty",
-                                fillcolor="rgba(102, 126, 234, 0.1)", hoverinfo="skip"))
 
     # main score
     fig.add_trace(TraceType(
@@ -567,6 +617,10 @@ def plot_timeseries(df: pd.DataFrame, score_col: str, axis_mode="time", render_m
     return fig, y_pred_full
 
 def apply_xaxis_mode(fig, is_dt: bool, axis_mode: str):
+    """
+    Configures x-axis formating based on the axis mode.
+    For time option, adds time-based rnage selector buttons and formats ticks as time.
+    For batch mode, uses standard numeric axis"""
     if axis_mode == "time" and is_dt:
         fig.update_xaxes(
             type="date",
@@ -591,6 +645,12 @@ def apply_xaxis_mode(fig, is_dt: bool, axis_mode: str):
 def apply_click_zoom(fig, clickData, df: pd.DataFrame, axis_mode: str,
                      time_window_s: int = CLICK_ZOOM_WINDOW_S,
                      batch_window_n: int = CLICK_ZOOM_WINDOW_N):
+    
+    """
+    Implements click-to-zoom functionality. 
+    Clicking on a point zooms to a window around that point.
+    Also adjusts y-axis range to fit the zoomed data with padding.
+    """
     if not clickData or "points" not in clickData or not clickData["points"]:
         return
     x_clicked = clickData["points"][0].get("x")
@@ -638,6 +698,9 @@ def apply_click_zoom(fig, clickData, df: pd.DataFrame, axis_mode: str,
         pass
 
 def filter_visible(df: pd.DataFrame, relayout: dict | None, axis_mode: str) -> pd.DataFrame:
+    """
+    Filtes dataframe to only include data points visible in the current plot view.
+    Used for calculating metrics on the zoomed-in portion of the data."""
     if not relayout: 
         return df
     if relayout.get("xaxis.autorange") is True or relayout.get("yaxis.autorange") is True: 
@@ -666,6 +729,14 @@ def get_x_series(df: pd.DataFrame, axis_mode: str):
     return x_vals(df), False
 
 def make_run_card(i, _csv_options_unused):
+    """
+    Creates a complete "run card" component containing:
+        1. File picker
+        2. Score column selector
+        3. Metrics display
+        4. Summary stats.
+        5. Plot of the graph.
+    Each card represents one analysis run."""
     return html.Div([
         html.H4(f"Run {i}", style={'color': COLORS['primary'], 'marginBottom': '20px'}),
 
@@ -806,6 +877,9 @@ def _level_id(i, lvl):
     prevent_initial_call=False
 )
 def render_picker(selection):
+    """
+    Renders the hierarchical dropdown pickers ofr file selection.
+    Creates a cascade of dropdowns representing each level of the directory level"""
     selection = selection or []
     i = ctx.triggered_id["index"]
     children = []
@@ -853,6 +927,9 @@ def render_picker(selection):
     prevent_initial_call=False
 )
 def on_level_change(values, ids):
+    """
+    Handles changes in the file picker dropdowns.
+    Update selection path and resolves to a CSV file path."""
     if not ids:
         return [], None
     pairs = sorted(zip(ids, values), key=lambda x: x[0]["lvl"])
@@ -875,6 +952,11 @@ def on_level_change(values, ids):
     prevent_initial_call=False
 )
 def manage_cards_directly(n_add, n_remove, current_children, seq):
+    """
+    Manages adding/removing graph cards.
+    Limits to 5 cards, minimum of 1 card.
+    Assigns unique IDs to new cards.
+    """
     trigger = ctx.triggered_id
     
     if current_children is None:
@@ -900,6 +982,7 @@ def manage_cards_directly(n_add, n_remove, current_children, seq):
     prevent_initial_call=True
 )
 def increment_seq(n_add, seq):
+    """Simple counter that increments the sequence number for creating unique graph card IDs"""
     return (seq or 1) + 1
 
 @app.callback(
@@ -908,6 +991,9 @@ def increment_seq(n_add, seq):
     Input({"type":"resolved-path","index":MATCH}, "data")
 )
 def refresh_scores_dynamic(resolved_csv):
+    """
+    Updates score column options when anew CSV file is selected. 
+    Reads the file header to determine available score columns."""
     if not resolved_csv:
         return [{"label":"median_score","value":"median_score"}], "median_score"
     return score_options_for(resolved_csv, default="median_score")
@@ -926,6 +1012,10 @@ def refresh_scores_dynamic(resolved_csv):
     State({"type":"zoom","index":MATCH}, "data")
 )
 def update_card(path, score_col, relayout, clickData, render_mode, axis_mode, zoom_state):
+    """
+    Main callback, refreshes the plot and metrics when any input changes.
+    Handles file loading, plotting, zoom state management, metrics calculation, and summary generation.
+    Preserves zoom state across updates and handles click-to-zoom interactions."""
     if not path:
         empty_fig = go.Figure()
         empty_fig.update_layout(

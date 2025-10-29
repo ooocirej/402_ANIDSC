@@ -69,34 +69,31 @@ def test_ae_save_load(tmp_path):
         assert torch.equal(orig[k], new[k]), f"Mismatch at {k}"
 
 def test_pipeline_save_load_state(tmp_path):
-    # 1) Build a tiny pipeline by hand
-    freq = FrequencyExtractor(time_window=10)
+
+    freq = FrequencyExtractor(time_window=10) #build a tiny pipeline
     ae   = AE(input_dims=1, latent_dim=4, device="cpu")
     pipeline = Pipeline(components={"freq": freq, "ae": ae})
 
-    # 2) Seed some non-default state in the extractor
-    for t in range(5):
+    for t in range(5): #some non-default state in the extractor
         freq.update({"timestamp": float(t)})
 
-    # 3) Save the entire pipeline under tmp_path/"cp"
-    cp_dir = tmp_path / "cp"
+    cp_dir = tmp_path / "cp" # Save the entire pipeline under tmp_path/"cp"
     pipeline.save_state(cp_dir)
 
-    # 4) Assert that the manifest and component folders exist
+    # Check that the manifest and component folders exist
     assert (cp_dir / "pipeline_config.yaml").exists()
     assert (cp_dir / "freq"   / "state.pkl").exists()
     assert (cp_dir / "ae"     / "model.pth").exists()
 
-    # 5) Load the pipeline back
-    loaded = Pipeline.load_state(cp_dir)
+    loaded = Pipeline.load_state(cp_dir) #Load the pipeline back
 
-    # 6) The wiring (to_dict) should match exactly
+    # loaded and created pipeline should match
     assert loaded.to_dict() == pipeline.to_dict()
 
-    # 7) The extractor’s running‐stats should match
+    # The components state should match
     assert loaded.components["freq"].state.__dict__ == freq.state.__dict__
 
-    # 8) The AE’s weights should match bit-for-bit
+    #components weights should match bit-for-bit
     orig_w = ae.state_dict()
     new_w  = loaded.components["ae"].state_dict()
     for k in orig_w:

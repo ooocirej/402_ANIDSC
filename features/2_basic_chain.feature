@@ -5,7 +5,7 @@ Feature: Basic chaining from CSV files
         When the pipeline starts
         Then the pipeline should not fail
         And the components are saved
-        # And export anomaly scores to "tmp/scores/{fe_name}/{file}.csv"
+        # And export anomaly scores to "tmp/scores/<fe_name>/<file>.csv"
         Examples:
             | state  | model               | file                        | fe_name            |
             # | new    | BoxPlot             | benign_lenovo_bulb          | FrequencyExtractor |

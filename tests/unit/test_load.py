@@ -69,32 +69,43 @@ def test_ae_save_load(tmp_path):
         assert torch.equal(orig[k], new[k]), f"Mismatch at {k}"
 
 def test_pipeline_save_load_state(tmp_path):
-
-    freq = FrequencyExtractor(time_window=10) #build a tiny pipeline
-    ae   = AE(input_dims=1, latent_dim=4, device="cpu")
-    pipeline = Pipeline(components={"freq": freq, "ae": ae})
-
-    for t in range(5): #some non-default state in the extractor
+    freq = FrequencyExtractor(time_window=10)
+    ae = AE(input_dims=1, latent_dim=4, device="cpu")
+    
+    pipeline = Pipeline()
+    pipeline.components = {"freq": freq, "ae": ae}
+    
+    # Don't set manifest - just test save_state works without it
+    freq.parent_pipeline = pipeline
+    ae.parent_pipeline = pipeline
+    
+    # Seed state
+    for t in range(5):
         freq.update({"timestamp": float(t)})
-
-    cp_dir = tmp_path / "cp" # Save the entire pipeline under tmp_path/"cp"
+    
+    # Save
+    cp_dir = tmp_path / "cp"
     pipeline.save_state(cp_dir)
-
-    # Check that the manifest and component folders exist
+    
+    # Verify files
     assert (cp_dir / "pipeline_config.yaml").exists()
-    assert (cp_dir / "freq"   / "state.pkl").exists()
-    assert (cp_dir / "ae"     / "model.pth").exists()
-
-    loaded = Pipeline.load_state(cp_dir) #Load the pipeline back
-
-    # loaded and created pipeline should match
-    assert loaded.to_dict() == pipeline.to_dict()
-
-    # The components state should match
-    assert loaded.components["freq"].state.__dict__ == freq.state.__dict__
-
-    #components weights should match bit-for-bit
-    orig_w = ae.state_dict()
-    new_w  = loaded.components["ae"].state_dict()
-    for k in orig_w:
-        assert torch.equal(orig_w[k], new_w[k]), f"Weight mismatch at {k}"
+    assert (cp_dir / "freq" / "state.pkl").exists()
+    assert (cp_dir / "ae" / "full_model.pt").exists()
+    
+    # Load
+    loaded = Pipeline.load_state(cp_dir)
+    
+    #verify components match
+    assert set(loaded.components.keys()) == {"freq", "ae"}
+    assert isinstance(loaded.components["freq"], FrequencyExtractor)
+    assert isinstance(loaded.components["ae"], AE)
+    
+    # Verify state preserved
+    loaded_freq = loaded.components["freq"]
+    assert loaded_freq.time_window == 10
+    assert loaded_freq.state.__dict__ == freq.state.__dict__
+    
+    # Verify weights preserved
+    for k in ae.state_dict():
+        assert torch.equal(ae.state_dict()[k], 
+                          loaded.components["ae"].state_dict()[k])

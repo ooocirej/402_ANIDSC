@@ -27,7 +27,7 @@ def step_given_loaded_afterimage_and_file(context, fe_class, file):
     # context.pipeline=Pipeline.load(manifest)
     # context.pipeline.on_load()
 
-    save_dir = Path("test_data") / fe_class / "benign_lenovo_bulb"
+    save_dir = Path("test_data") / fe_class / "benign_lenovo_bulb/feature_extraction"
     pipeline = Pipeline.load_state(save_dir)
 
     pipeline.manifest["data_source"]["attrs"]["file_name"] = file

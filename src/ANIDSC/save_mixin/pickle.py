@@ -73,22 +73,32 @@ class PickleSaveMixin:
 
     @classmethod
     def load_state(cls, dirpath: Path | None = None, **attrs):
-        """ Load component
-            - if no dirpath, instantiate with attrs.
-            - If dirpath provided, ignore attrs, use pkl files"""
+        """Load component."""
         
         if dirpath is None:
             return cls(**attrs)
-        # load constructor arguments from pickle files
-        with open(dirpath / "init_args.pkl", "rb") as f:
+        
+        dirpath = Path(dirpath)
+        init_args_file = dirpath / "init_args.pkl"
+        state_file = dirpath / "state.pkl"
+        
+        # Basic validation
+        if not dirpath.exists():
+            raise FileNotFoundError(f"Directory not found: {dirpath}")
+        if not init_args_file.exists():
+            raise FileNotFoundError(f"Missing {init_args_file}")
+        if not state_file.exists():
+            raise FileNotFoundError(f"Missing {state_file}")
+        
+        # Load
+        with open(init_args_file, "rb") as f:
             init_args = pickle.load(f)
-
-        #instantiate
+        
         inst = cls(**init_args)
-
-        #restore rest of state
-        with open(dirpath / "state.pkl", "rb") as f:
+        
+        with open(state_file, "rb") as f:
             state = pickle.load(f)
         inst.__dict__.update(state)
+        
         return inst
     

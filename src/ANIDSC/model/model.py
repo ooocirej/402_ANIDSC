@@ -41,6 +41,7 @@ class BaseOnlineODModel(PickleSaveMixin, PipelineComponent):
                 
         self.batch_trained = 0
         self.batch_evaluated = 0
+        self.save_attr.extend(["model_name", "queue_len", "percentile", "warmup", "t_func"])
         
         if "." in model_name:
             sub_module, class_name = model_name.rsplit(".", 1)

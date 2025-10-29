@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any, Dict
+import warnings
 import torch
 
 
@@ -10,7 +11,6 @@ class TorchSaveMixin:
         Args:
             suffix (str, optional): suffix of model. Defaults to "".
         """        
-        super().save()
         # checkpoint = {
         #     "model_state_dict": self.state_dict(),
         # }
@@ -21,6 +21,27 @@ class TorchSaveMixin:
         torch.save(self, str(ckpt_path))
 
     def save_state(self, dirpath: Path) -> None:
+
+        dirpath.mkdir(parents=True, exist_ok=True)
+        
+        # Check if _init_args exists
+        if not hasattr(self, '_init_args'):
+            warnings.warn(
+                f"{self.__class__.__name__}: _init_args not set. "
+                f"Model may not load correctly. "
+                f"Ensure your __init__ calls super().__init__() or sets _init_args."
+            )
+            # Try to extract from save_attr as fallback
+            self._init_args = {
+                k: getattr(self, k)
+                for k in getattr(self, "save_attr", [])
+            }
+        
+        # Save init args
+        torch.save(self._init_args, str(dirpath / "init_args.pth"))
+        
+        # Save model weights
+        torch.save(self.state_dict(), str(dirpath / "model.pth"))
         dirpath = Path(dirpath)
         dirpath.mkdir(parents=True, exist_ok=True)
         torch.save(self, str(dirpath / "full_model.pt"))
@@ -46,7 +67,27 @@ class TorchSaveMixin:
     
     @classmethod
     def load_state(cls, dirpath: Path):
-        return torch.load(str(Path(dirpath) / "full_model.pt"))
+        """Load torch model."""
+        
+        dirpath = Path(dirpath)
+        init_args_file = dirpath / "init_args.pth"
+        model_file = dirpath / "model.pth"
+        
+        # Basic validation
+        if not dirpath.exists():
+            raise FileNotFoundError(f"Directory not found: {dirpath}")
+        if not init_args_file.exists():
+            raise FileNotFoundError(f"Missing {init_args_file}")
+        if not model_file.exists():
+            raise FileNotFoundError(f"Missing {model_file}")
+        
+        # Load
+        init_args = torch.load(str(init_args_file))
+        inst = cls(**init_args)
+        state_dict = torch.load(str(model_file))
+        inst.load_state_dict(state_dict)
+        
+        return inst
        
 
     def state_dict(self)->Dict[str, Any]:
@@ -70,3 +111,8 @@ class TorchSaveMixin:
             setattr(self, i, state_dict[i])
             del state_dict[i]
         super().load_state_dict(state_dict)
+
+    def on_load(self):
+        self.to(getattr(self, "device", "cpu"))
+        try: self.eval()
+        except Exception: pass

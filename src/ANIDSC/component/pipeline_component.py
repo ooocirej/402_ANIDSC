@@ -37,16 +37,41 @@ class PipelineComponent(ABC):
         # used for saving config
         self.save_attr=[]
         
-    def get_save_attr(self):
-        save_state={}
-        for i in self.save_attr:
-            if i=="manifest": #special case for components
-                value={k: v.to_dict() for k, v in self.__dict__["components"].items()}
-            else:
-                value=self.__dict__[i]
-            save_state[i]=value
+    def get_save_path(self):
+        """Get save path, handling both old and new systems."""
+    
+        if isinstance(self, NullSaveMixin):
+            return False
+        
+        # Check if new save_state system
+        if hasattr(self, 'parent_pipeline') and self.parent_pipeline is not None:
+            parent_manifest = getattr(self.parent_pipeline, 'manifest', {})
             
-        return save_state
+            # New system: components are top-level keys
+            # Old system: nested under data_source/attrs
+            is_new_system = (
+                parent_manifest and 
+                'data_source' in parent_manifest and
+                isinstance(parent_manifest['data_source'], dict) and
+                'module' in parent_manifest['data_source']  # New format has 'module'
+            )
+            
+            if is_new_system:
+                return str(self)
+        
+        # Old system
+        if isinstance(self, YamlSaveMixin):
+            return self.get_save_path_template().format(
+                self.component_type, str(self), "yaml"
+            )
+        elif isinstance(self, PickleSaveMixin):
+            return self.parent_pipeline.get_save_path_template().format(
+                self.component_type, str(self), "pkl"
+            )
+        elif isinstance(self, TorchSaveMixin):
+            return self.parent_pipeline.get_save_path_template().format(
+                self.component_type, str(self), "pth"
+            )
     
     def preprocess(self,X):
         """preprocesses the input with preprocessor

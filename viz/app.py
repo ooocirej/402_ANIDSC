@@ -1,21 +1,13 @@
 from pathlib import Path
-import json
 import numpy as np
 import pandas as pd
-import time
 from dash import Dash, dcc, html, Input, Output, State, no_update, MATCH, ctx
-try:
-    from dash import dash_table
-except Exception:
-    import dash_table
 import plotly.graph_objects as go
 import plotly.io as pio
 from dash.dependencies import ALL
 
 pio.templates.default = "plotly_white"
 
-SCORES_ROOT = Path("tests/unit/AfterImage")
-SCORES_ROOT = SCORES_ROOT if SCORES_ROOT.exists() else Path("tmp/scores")
 SAMPLE_PERIOD_S = 10.0
 CLICK_ZOOM_WINDOW_S = 600
 CLICK_ZOOM_WINDOW_N = 1000
@@ -26,13 +18,8 @@ RESULTS_ROOT = Path("tests/unit/AfterImage/results")
 # color scheme
 COLORS = {
     'primary': '#667eea',
-    'secondary': '#764ba2',
     'score': 'rgba(102, 126, 234, 0.8)',
     'threshold': 'rgba(234, 102, 102, 0.8)',
-    'moving_avg': 'rgba(102, 234, 126, 0.8)',
-    'anomaly': '#ff4444',
-    'background': '#f8f9fa',
-    'card_bg': 'white',
     'text': '#495057',
     'text_light': '#6c757d'
 }
@@ -102,38 +89,6 @@ graph_card_styles = {
 }
 
 # ---------- HELPERS ----------
-def find_csvs(root: Path):
-    """
-    Search for CSV files recursively in a directory to create readable labels for them.
-    Expects diretory structure:
-    result/<dataset>/<feature>/<file>/<pipeline>/<csv_file>.csv
-    """
-    files = sorted(root.rglob("*.csv"))
-    opts = []
-
-    for p in files:
-        label = p.name
-        try:
-            rel = p.relative_to(root)
-            parts = rel.parts  # includes the filename at the end
-
-            # Try to parse the last 5 parts: dataset/feature/file/pipeline/file.csv
-            if len(parts) >= 5:
-                dataset, feature, file_name, pipeline = parts[-5], parts[-4], parts[-3], parts[-2]
-                label = f"{dataset}/{feature}/{file_name} — {pipeline}"
-            elif len(parts) >= 3:
-                # fallback: <parent>/<parent>/<file.csv>
-                label = "/".join(parts[-3:-1])  # two dirs
-            else:
-                label = parts[-1]  # just the filename
-        except Exception:
-            # Final fallback if relative_to fails
-            label = p.name
-
-        opts.append({"label": label, "value": str(p)})
-
-    return opts
-
 def build_results_tree(root: Path) -> dict:
     """
     Build hierarchical tree representation of file system from root.
@@ -389,54 +344,49 @@ def _downsample_indices_len_safe(n: int, keep_idxs, max_points: int = MAX_POINTS
 
 def summarize_run(df: pd.DataFrame, score_col: str):
     """
-    Sumarrizes statistics for a run including mean/median/stdev of scores, etc.
-    Returns summary dict and predicted anomalies."""
+    Minimal summary: mean, median, anomaly fraction (+ optional label metrics).
+    Still returns y_pred so the Metrics panel can compute detailed metrics.
+    """
+    # pick score column
     if score_col not in df.columns:
-        scores = list_score_cols(df)
-        s = pd.Series([np.nan]*len(df)) if not scores else pd.to_numeric(df[scores[0]], errors="coerce")
-        score_col = scores[0] if scores else score_col
+        cols = list_score_cols(df)
+        if not cols:
+            # no scores at all; return empty summary + zeros
+            n = len(df)
+            return {"n": 0, "score_mean": None, "score_median": None,
+                    "frac_anomalies": 0.0, "label_metrics": None}, pd.Series([0]*n)
+        score_col = cols[0]
+
+    s = pd.to_numeric(df[score_col], errors="coerce")
+    thr = get_threshold_series(df)
+
+    # predicted anomalies (needed by Metrics panel)
+    if thr.notna().any():
+        y_pred = (s >= thr).astype(int)
     else:
-        s = pd.to_numeric(df[score_col], errors="coerce")
-    thr_used = get_threshold_series(df)
-    y_pred = (s >= thr_used).astype(int) if thr_used.notna().any() else pd.Series([0]*len(df))
-    n = int(s.notna().sum())
+        y_pred = pd.Series([0]*len(df), index=s.index)
+
+    # minimal summary fields actually shown
+    n_valid = int(s.notna().sum())
+    score_mean = float(s.mean()) if n_valid else None
+    score_median = float(s.median()) if n_valid else None
+
     n_anom = int(y_pred.fillna(0).sum())
-    frac_anom = (n_anom/n) if n else 0.0
-    first_anom = int(df.loc[y_pred.fillna(0).astype(bool), "batch_num"].iloc[0]) if "batch_num" in df and (y_pred.fillna(0)>0).any() else None
-    peak_idx = int(s.idxmax()) if n else None
-    peak_batch = int(df.loc[peak_idx, "batch_num"]) if peak_idx is not None and "batch_num" in df else None
-    peak_score = float(s.max()) if n else None
-    thr_median = float(np.nanmedian(thr_used)) if len(thr_used) else None
-    segments=[]
-    if n:
-        mask = y_pred.fillna(0).astype(int).to_numpy()
-        xv = (df["batch_num"].to_numpy() if "batch_num" in df.columns else np.arange(len(df)))
-        in_seg=False; start=None
-        for i, flag in enumerate(mask):
-            if flag and not in_seg:
-                in_seg=True; start=i
-            if in_seg and (i==len(mask)-1 or not mask[i+1]):
-                end=i
-                segments.append({"start_batch": int(xv[start]), "end_batch": int(xv[end]), "length": int(end-start+1)})
-                in_seg=False
-    top_segs = sorted(segments, key=lambda d: d["length"], reverse=True)[:3]
-    y_true = pd.to_numeric(df.get("y_true"), errors="coerce") if "y_true" in df.columns else None
+    frac_anom = (n_anom / n_valid) if n_valid else 0.0
+
+    # optional label metrics (shown only if labels exist)
     label_metrics = None
-    if y_true is not None and y_true.notna().any():
-        m = compute_metrics(y_true.fillna(0).to_numpy(), y_pred.fillna(0).to_numpy())
-        label_metrics = m
+    if "y_true" in df.columns:
+        y_true = pd.to_numeric(df["y_true"], errors="coerce")
+        if y_true.notna().any() and len(y_true) == len(y_pred):
+            label_metrics = compute_metrics(y_true.fillna(0).to_numpy(),
+                                            y_pred.fillna(0).to_numpy())
+
     return {
-        "n": n,
-        "score_mean": float(s.mean()) if n else None,
-        "score_median": float(s.median()) if n else None,
-        "score_std": float(s.std()) if n else None,
-        "n_anomalies": n_anom,
+        "n": n_valid,                 # (kept only if you want to show it later; safe to remove)
+        "score_mean": score_mean,
+        "score_median": score_median,
         "frac_anomalies": frac_anom,
-        "first_anomaly_batch": first_anom,
-        "peak_score": peak_score,
-        "peak_batch": peak_batch,
-        "threshold_median": thr_median,
-        "top_segments": top_segs,
         "label_metrics": label_metrics,
     }, y_pred
 
@@ -569,9 +519,7 @@ def plot_timeseries(df: pd.DataFrame, score_col: str, axis_mode="time", render_m
     # recompute anomalies for the downsampled series
     if thr.notna().any():
         yp_plot = (sx >= thrx).astype(int)
-        anom_idx_plot = yp_plot.fillna(0).to_numpy().nonzero()[0]
-    else:
-        anom_idx_plot = np.array([], dtype=int)
+
 
     TraceType = go.Scattergl if render_mode == "gl" else go.Scatter
     fig = go.Figure()
@@ -728,7 +676,7 @@ def get_x_series(df: pd.DataFrame, axis_mode: str):
         return time_to_datetime_series(df)
     return x_vals(df), False
 
-def make_run_card(i, _csv_options_unused):
+def make_run_card(i, ):
     """
     Creates a complete "run card" component containing:
         1. File picker
@@ -798,7 +746,6 @@ def make_run_card(i, _csv_options_unused):
 # ---------- APP ----------
 app = Dash(__name__)
 app.title = "ANIDSC Visualizer"
-csv_options = find_csvs(SCORES_ROOT)
 
 app.layout = html.Div([
     # Outer container with gradient background
@@ -960,14 +907,14 @@ def manage_cards_directly(n_add, n_remove, current_children, seq):
     trigger = ctx.triggered_id
     
     if current_children is None:
-        return [make_run_card(0, csv_options)]
+        return [make_run_card(0)]
     
     current_children = list(current_children or [])
     
     if trigger == "add-graph":
         if len(current_children) < 5:
             new_id = seq if seq else len(current_children)
-            new_card = make_run_card(new_id, csv_options)
+            new_card = make_run_card(new_id)
             current_children.append(new_card)
     
     elif trigger == "remove-graph" and len(current_children) > 1:
